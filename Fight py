@@ -1,0 +1,123 @@
+from picrawler import Picrawler
+from time import sleep
+import readchar
+import threading
+import cv2
+
+# Initialize Picrawler
+crawler = Picrawler()
+camera_on = False  # Camera is off by default
+
+# Key dictionary mapping keys to actions
+key_dict = {
+    'g': 'toggle_camera',
+    'f': 'fighting'
+}
+
+key = None
+lock = threading.Lock()
+
+# Thread function to scan for key presses
+def key_scan_thread():
+    global key
+    while True:
+        key_temp = readchar.readkey()
+        print('\r', end='')
+        with lock:
+            key = key_temp.lower()
+            if key == readchar.key.CTRL_C:
+                key = 'quit'
+                break
+        sleep(0.01)
+
+# Function to toggle the camera feed
+def toggle_camera():
+    global camera_on
+    camera_on = not camera_on
+    if camera_on:
+        cap = cv2.VideoCapture(0)
+        while camera_on:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            cv2.imshow('Camera Feed', frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('g'):
+                camera_on = False
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+# Custom action function
+def fighting(spider):
+    # Ready position
+    ready = [
+        [[45, 45, -50], [45, 0, -50], [45, 0, -50], [45, 45, -50]],  # Initial stance
+        [[45, 45, -40], [45, 0, -40], [50, 20, -20], [45, 45, -50]],  # Preparing to twist
+        [[45, 45, -40], [45, 0, -40], [40, 20, -45], [45, 45, -50]],  # Twisting motion
+        [[45, 45, -40], [45, 0, -40], [60, 40, -60], [45, 45, -40]],  # Further twist
+        [[45, 45, -40], [45, 30, -30], [60, 40, -60], [45, 45, -40]],  # Preparing to pounce
+        [[45, 45, -30], [45, 30, -30], [60, 40, -60], [60, 40, -60]],  # Pouncing position
+    ]
+    # Twisting the butt
+    twist_butt = [
+        [[55, 7, -30], [19, 48, -30], [77, 12, -60], [36, 63, -60]],  # Twist left
+        [[19, 48, -30], [55, 7, -30], [36, 63, -60], [77, 12, -60]],  # Twist right
+        [[55, 7, -30], [19, 48, -30], [77, 12, -60], [36, 63, -60]],  # Twist left
+        [[19, 48, -30], [55, 7, -30], [36, 63, -60], [77, 12, -60]],  # Twist right
+        [[40, 30, -30], [40, 30, -30], [60, 40, -60], [60, 40, -60]],  # Center position
+        [[40, 60, -30], [40, 60, -30], [60, 10, -60], [60, 10, -60]],  # Final twist
+    ]
+    # Pouncing and biting
+    pounce_bite = [
+        [[40, 40, -60], [20, 60, 110], [60, 60, -60], [60, 60, -60]],  # Pounce forward
+        [[40, 40, -40], [20, 30, -40], [60, 60, -60], [60, 60, -60]],  # Bite down
+        [[20, 60, 110], [20, 30, -60], [60, 60, -60], [60, 60, -60]],  # Pounce again
+        [[20, 30, -40], [20, 30, -40], [60, 60, -60], [60, 60, -60]],  # Bite down
+    ]
+    # Returning to stand position
+    return_stand = [
+        [[45, 45, -50], [45, 0, -30], [45, 0, -50], [45, 45, -50]],  # Return to initial stance
+        [[45, 45, -50], [45, 0, -40], [45, 0, -50], [45, 45, -50]],  # Adjust stance
+        [[45, 45, -50], [45, 0, -50], [45, 0, -50], [45, 45, -50]],  # Final stance
+    ]
+    for coord in ready:
+        spider.do_step(coord, 80)  # Execute ready position steps
+    for coord in twist_butt:
+        spider.do_step(coord, 90)  # Execute twisting steps
+    for coord in pounce_bite:
+        spider.do_step(coord, 100)  # Execute pouncing and biting steps
+    for coord in return_stand:
+        spider.do_step(coord, 80)  # Execute return to stand steps
+
+def main():
+    global key
+    action = None
+    print("Press 'g' to toggle camera, 'f' for fighting, and Ctrl+C to quit.")
+
+    _key_t = threading.Thread(target=key_scan_thread)
+    _key_t.setDaemon(True)
+    _key_t.start()
+
+    while True:
+        with lock:
+            if key is not None and key in key_dict:
+                action = key_dict[str(key)]
+                key = None
+            elif key == 'quit':
+                _key_t.join()
+                print("\n\rQuit")
+                break
+
+        if action is not None:
+            if action == 'toggle_camera':
+                toggle_camera()
+            else:
+                action(crawler)  # Call the function with crawler as argument
+            action = None
+
+        sleep(0.05)
+
+if __name__ == "__main__":
+    main()
